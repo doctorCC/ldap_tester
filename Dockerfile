@@ -3,6 +3,9 @@ FROM $BASEIMAGE
 ARG OPT=/opt
 ARG LOGBASEIMAGE=$OPT/baseimage.version
 ARG LOGBASEVERSION=$OPT/baseversion
+ARG ETC=/etc
+ARG NSCD=nscd.conf
+ARG UPDATE_LDAP=update_ldap_config.sh
 ARG EP=entry_point.sh
 ARG SSHD_ACCOUNT=sshduser
 #This ARG reduces the output of the dpkg installs so you do not see warnings
@@ -21,13 +24,17 @@ RUN cd /var/cache/apt/archives
 RUN ls -l
 #CHANGED FOR SINGLE FILE BUILD: REMOVE THE 'd 'TO INSTALL THE FILE IMMEDIATELY
 RUN apt-get -y --no-install-recommends install apt-utils wget curl ca-certificates sudo nscd libnss-ldap libpam-ldap nano openssh-server libssl3 openssl python3 tzdata iptables ldap-utils iputils-ping iputils-arping perl libasound2t64 libcanberra0 libcap2-bin libcryptsetup12 libcurl3-gnutls libgdbm6 libgpm2 libltdl7 libogg0 libvorbisfile3 sound-theme-freedesktop util-linux bzip2 fdisk glibc-tools mailcap util-linux-extra xxd media-types  
+
+#CHANGED TO ADD EXTRA FILES FOR LDAP CONNECTION TO TLS
 RUN apt install  libldap-common
+
 RUN apt-get -y --no-install-recommends install wget
 RUN wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/containerd.io_1.7.19-1_amd64.deb  --no-check-certificate
 RUN wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-ce_27.1.1-1~ubuntu.24.04~noble_amd64.deb  --no-check-certificate
 RUN wget https://download.docker.com/linux/ubuntu/dists/noble/pool/stable/amd64/docker-ce-cli_27.1.1-1~ubuntu.24.04~noble_amd64.deb  --no-check-certificate
 #CHANGED FOR SINGLE FILE BUILD: INSTALL THE FILEs IMMEDIATELY
 RUN dpkg -i  --refuse-downgrade ./*deb
+
 
 #CHANGED FOR SINGLE FILE BUILD: REMOVE THE 'd 'TO INSTALL THE FILE IMMEDIATELY
 RUN apt-get -y --no-install-recommends install ca-certificates nano 
@@ -61,7 +68,14 @@ RUN echo 'foo:bar' | chpasswd
 COPY $EP $OPT
 RUN chmod u+x $OPT/$EP
 RUN chown $SSHD_ACCOUNT $OPT/$EP
-
+#Changed to add the nscd into the Image at /etc/nscd.conf
+COPY $NSCD $ETC
+RUN chmod u+x $ETC/$NSCD
+RUN chown $SSHD_ACCOUNT $ETC/$NSCD
+#Create a script which can be run to update for a new ldap config
+COPY $UPDATE_LDAP /
+RUN chmod u+x $UPDATE_LDAP
+RUN chown $SSHD_ACCOUNT $UPDATE_LDAP
 #Store initial contents of the Base.
 RUN echo "ubuntu:noble on $(date)" > /etc/image.id
 RUN apt list --installed > /etc/image_package_content.txt
