@@ -82,3 +82,30 @@ RUN apt list --installed > /etc/image_package_content.txt
 
 #Remove the initial ssh keys which were generated.
 #CHANGED FOR SINGLE FILE BUILD: removed this ->      RUN rm /etc/ssh/ssh_host_ecdsa_key /etc/ssh/ssh_host_ecdsa_key.pub /etc/ssh/ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key.pub /etc/ssh/ssh_host_rsa_key /etc/ssh/ssh_host_rsa_key.pub
+
+#Add 'ldap' to passwd and group lines
+RUN    sed -r  -e 's|(passwd:.*)|& ldap|' -e 's|(group:.*)|& ldap|' -e 's|(netgroup:.*)|& ldap|' -i /etc/nsswitch.conf
+
+#Insert 2 lines into end of /pam.d/sshd, the \$a matches the end of the file. NOTE: Still needs to be fixed
+RUN    echo 'auth    sufficient      pam_ldap.so' >> /etc/pam.d/sshd
+RUN    echo 'account sufficient      pam_permit.so' >> /etc/pam.d/sshd
+
+#Insert 'session required pam_mkhomedir.so skel=/etc/skel umask=0022' into /etc/pam.d/ccommon-session
+RUN    sed '1 i session required pam_mkhomedir.so skel=/etc/skel umask=0022' -i /etc/pam.d/common-session
+
+#Change the PasswordAuthentication to yes in /etc/ssh/sshd_config and uncomment
+RUN    sed -r -e 's|(#)(PasswordAuthentication)(.*)|\2 yes|' -i /etc/ssh/sshd_config
+
+#Insert into /etc/pam.d/common-auth to allow new users to be added to 'docker' group automatically. 
+RUN    sed '1 i auth    required     pam_group.so use_first_pass' -i /etc/pam.d/common-auth
+
+#Insert into /etc/security/group.conf to allow new users to be added to 'docker' group automatically.
+RUN    sed '1 i *;*;*;Al0000-2400;docker' -i /etc/security/group.conf
+
+#Change the initial 'sudo' message to indicate that they only have limited root priviledges, and should seek .
+RUN    sed -r -e 's|(To run a command)+(.*)|Sudo only permits specific User Management functions.  See additional documentation for details.|' -e 's/(See "man sudo_root")+(.*)//' -i /etc/bash.bashrc
+#####################################
+    #in /etc/ssh/sshd_config and uncomment
+ RUN   sed -r -e 's|(#)(PermitRootLogin)(.*)|\2 no|' -i /etc/ssh/sshd_config
+RUN    sed -r -e 's|(#)(LogLevel)(.*)|\2 DEBUG|' -i /etc/ssh/sshd_config
+
